@@ -1,0 +1,649 @@
+
+
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usepackage{pgfplots}
+
+\geometry{margin=1in}
+
+% \title{\textbf{Scale-Invariant Feature Transform (SIFT) Implementation: A Comprehensive Analysis of Feature Detection, Matching, and Image Stitching}}
+% \author{Computer Vision \& Image Understanding Assignment}
+% \date{\today}
+
+\begin{document}
+
+\thispagestyle{empty}
+\pagestyle{empty}
+\vspace*{-1.75cm}
+
+\begin{center}
+\begin{Large}
+\vspace{3cm}
+{\textbf{Implementation of SIFT Feature Extraction and Image Matching Techniques}}\\
+\end{Large}
+\end{center}
+
+\vspace{0.2cm}
+\begin{center}
+ \begin{large}
+ \textbf{Assignment-2}\\
+ \vspace{0.3cm}
+ of\\
+ \textbf{Computer Vision and Image Understanding}\\
+ 
+ \vspace{0.3cm}
+ 
+ \end{large}
+\end{center}
+
+\begin{center}
+ \begin{large}
+ by\\
+ \vspace{0.2cm}
+ \textbf{Prithwish Dey (CSE/22065/919)}\\
+
+ \vspace{2cm}
+ \end{large}
+\end{center}
+
+\begin{center}
+ \begin{tabular}{l}
+ \includegraphics[width = 3.5 cm]{IIITK.png}
+ \end{tabular}
+\end{center}
+
+\vspace{-0.3cm}
+\begin{center}
+\begin{large}
+ \vspace{0.25cm}
+ \hspace{-15mm} DEPARTMENT OF COMPUTER SCIENCE AND ENGINEERING\\
+ \hspace{-15mm} INDIAN INSTITUTE OF INFORMATION TECHNOLOGY KALYANI\\
+ KALYANI - 741235, WEST BENGAL, INDIA\\
+ \vskip 28pt
+ October, 2025
+\end{large}
+\end{center}
+
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section{Introduction}
+
+The Scale-Invariant Feature Transform (SIFT) is a computer vision algorithm developed by David Lowe in 2004 that detects and describes local features in images. SIFT is invariant to image scale, rotation, and partially invariant to illumination changes and affine distortion. This report presents a comprehensive implementation of the SIFT algorithm with detailed mathematical explanations and three main applications:
+
+\begin{enumerate}
+    \item \textbf{Pairwise Image Matching}: Analysis of feature matching between two images under various transformations
+    \item \textbf{Dataset Matching}: Multi-image feature matching across a dataset of 3-4 images
+    \item \textbf{Image Stitching}: Panoramic image creation from images.
+\end{enumerate}
+
+\section{Mathematical Foundation of SIFT}
+
+\subsection{Scale Space Theory}
+
+The SIFT algorithm is based on scale space theory, which provides a framework for analyzing image structures at different scales. The scale space representation $L(x,y,\sigma)$ of an image $I(x,y)$ is defined as:
+
+\begin{equation}
+L(x,y,\sigma) = G(x,y,\sigma) * I(x,y)
+\end{equation}
+where $G(x,y,\sigma)$ is the Gaussian kernel:
+
+\begin{equation}
+G(x,y,\sigma) = \frac{1}{2\pi\sigma^2}e^{-\frac{x^2+y^2}{2\sigma^2}}
+\end{equation}
+
+\subsection{Gaussian Pyramid Construction}
+
+The Gaussian pyramid is constructed (Fig.~\ref{fig:fig1}) by repeatedly applying Gaussian blur with increasing scale parameter $\sigma$. For each octave $o$ and scale $s$, the effective scale is:
+
+\begin{equation}
+\sigma_{eff} = \sigma_0 \cdot 2^{o + \frac{s}{S}}
+\end{equation}
+where $\sigma_0 = 1.6$ (initial scale), $o$ is the octave index, $s$ is the scale index within the octave and $S$ is the number of scales per octave.
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/gaussian_pyramid.png}
+    \caption{Gaussian Pyramids of each Octave}
+    \label{fig:fig1}
+\end{figure}
+
+\subsection{Difference of Gaussian (DoG) Pyramid}
+
+The Difference of Gaussian pyramid (Fig.~\ref{fig:fig2}) is computed by subtracting adjacent Gaussian images:
+
+\begin{equation}
+D(x,y,\sigma) = L(x,y,k\sigma) - L(x,y,\sigma)
+\end{equation}
+where $k = 2^{1/S}$ is the scale multiplicative factor.
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/dog_pyramid.png}
+    \caption{Difference of Gaussian (DoG) Pyramids of each Octave}
+    \label{fig:fig2}
+\end{figure}
+
+\subsection{Keypoint Detection}
+
+Keypoints are detected as local extrema in the DoG pyramid (Fig.~\ref{fig:fig3}). A point $(x,y,\sigma)$ is considered a keypoint if it is a local maximum or minimum in a $3 \times 3 \times 3$ neighborhood:
+
+\begin{equation}
+D(x,y,\sigma) = \begin{cases}
+\text{local maximum} & \text{if } D(x,y,\sigma) > D(x',y',\sigma') \text{ for all neighbors} \\
+\text{local minimum} & \text{if } D(x,y,\sigma) < D(x',y',\sigma') \text{ for all neighbors}
+\end{cases}
+\end{equation}
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/keypoint_detection.png}
+    \caption{Initial Detected Keypoints}
+    \label{fig:fig3}
+\end{figure}
+
+\subsection{Keypoint Localization and Filtering}
+
+\subsubsection{Contrast Threshold}
+
+Low-contrast keypoints are filtered out using:
+
+\begin{equation}
+|D(x,y,\sigma)| > \tau_{contrast}
+\end{equation}
+where $\tau_{contrast} = 0.04$ is the contrast threshold.
+
+\subsubsection{Edge Response Filtering}
+
+Edge responses are filtered using the Hessian matrix:
+
+\begin{equation}
+H = \begin{bmatrix}
+D_{xx} & D_{xy} \\
+D_{xy} & D_{yy}
+\end{bmatrix}
+\end{equation}
+The edge response is measured by:
+
+\begin{equation}
+\frac{(\text{Tr}(H))^2}{\text{Det}(H)} < \frac{(\tau_{edge} + 1)^2}{\tau_{edge}}
+\end{equation}
+where $\tau_{edge} = 10$ is the edge threshold.
+
+\subsection{Orientation Assignment}
+
+For each keypoint, a dominant orientation is assigned based on gradient magnitude and orientation in a circular region around the keypoint (Fig.~\ref{fig:fig4}). The gradient magnitude and orientation are computed as:
+
+\begin{align}
+m(x,y) &= \sqrt{(L(x+1,y) - L(x-1,y))^2 + (L(x,y+1) - L(x,y-1))^2} \\
+\theta(x,y) &= \arctan\left(\frac{L(x,y+1) - L(x,y-1)}{L(x+1,y) - L(x-1,y)}\right)
+\end{align}
+An orientation histogram is created with 36 bins covering 360 degrees:
+
+\begin{equation}
+h(\theta) = \sum_{(x,y) \in R} m(x,y) \cdot w(x,y) \cdot \delta(\theta - \theta(x,y))
+\end{equation}
+where $R$ is the circular region, $w(x,y)$ is a Gaussian weight, and $\delta$ is the Kronecker delta.
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/keypoint_orientation.png}
+    \caption{Keypoints Orientation Assignment}
+    \label{fig:fig4}
+\end{figure}
+
+
+\subsection{Descriptor Computation}
+
+The SIFT descriptor is a 128-dimensional vector computed from a $4 \times 4$ grid of orientation histograms with 8 orientation bins each. The descriptor window is rotated to the keypoint's dominant orientation for rotation invariance.
+
+For each $4 \times 4$ cell, an 8-bin orientation histogram is computed:
+
+\begin{equation}
+d_{ij} = \sum_{(x,y) \in C_{ij}} m(x,y) \cdot w(x,y) \cdot \delta(\theta - \theta(x,y))
+\end{equation}
+
+where $C_{ij}$ is the $(i,j)$-th cell, and $w(x,y)$ is a Gaussian weight.
+
+The final descriptor (Fig.~\ref{fig:fig5}) is normalized and thresholded:
+
+\begin{align}
+d &= \frac{d}{||d||} \\
+d_i &= \min(d_i, 0.2) \quad \text{for all } i \\
+d &= \frac{d}{||d||}
+\end{align}
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/descriptor_visualization.png}
+    \caption{SIFT Descriptors}
+    \label{fig:fig5}
+\end{figure}
+
+\section{Implementation Overview}
+
+\subsection{Algorithm}
+
+The SIFT implementation follows this pipeline:
+
+\begin{algorithm}
+\caption{SIFT Feature Detection and Description}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Image $I(x,y)$
+\STATE \textbf{Output:} Keypoints and descriptors
+\STATE Build Gaussian pyramid $L(x,y,\sigma)$
+\STATE Build DoG pyramid $D(x,y,\sigma)$
+\STATE Detect keypoints as local extrema in DoG
+\STATE Filter keypoints using contrast and edge thresholds
+\STATE Assign orientations to keypoints
+\STATE Compute 128-dimensional descriptors
+\STATE \textbf{Return:} Keypoints and descriptors
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Feature Matching}
+
+Feature matching is performed using the Euclidean distance between descriptors and Lowe's ratio test:
+
+\begin{equation}
+\frac{d_1}{d_2} < \tau_{ratio}
+\end{equation}
+where $d_1$ and $d_2$ are the distances to the first and second nearest neighbors, and $\tau_{ratio} = 0.75$.
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/original_images_matches.png}
+    \caption{Matching of same features}
+    \label{fig:fig6}
+\end{figure}
+
+\section{Task 1 (Pairwise Image Matching with Transformation Analysis):}
+
+\subsection{Objective}
+
+This task demonstrates SIFT keypoint matching between two images and analyzes the algorithm's performance under various transformations including rotation, scale changes, and illumination variations.
+
+\subsection{Different Transformations}
+
+\begin{itemize}
+    \item \textbf{Rotation Invariance}
+
+    For a rotation by angle $\theta$, the transformation matrix is:
+    
+    \begin{equation}
+    R(\theta) = \begin{bmatrix}
+    \cos\theta & -\sin\theta \\
+    \sin\theta & \cos\theta
+    \end{bmatrix}
+    \end{equation}
+
+    \begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/rotation_(30°)_matches.png}
+    \caption{Feature Matching with Rotation}
+    \label{fig:fig7}
+\end{figure}
+
+    The SIFT descriptor is rotation-invariant because it aligns the descriptor window to the dominant gradient orientation.
+    
+    \item \textbf{Scale Invariance}
+    
+    For a scale factor $s$, the transformation is:
+    
+    \begin{equation}
+    S(s) = \begin{bmatrix}
+    s & 0 \\
+    0 & s
+    \end{bmatrix}
+    \end{equation}
+    
+    Scale invariance is achieved through the multi-scale DoG pyramid construction.
+
+    \begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/scale_(0.7x)_matches.png}
+    \caption{Feature Matching with different scale}
+    \label{fig:fig8}
+ \end{figure}
+    
+    \item \textbf{Illumination Invariance}
+    
+    For illumination changes, the transformation is:
+    
+    \begin{equation}
+    I'(x,y) = \alpha \cdot I(x,y) + \beta
+    \end{equation}
+    
+    where $\alpha$ controls contrast and $\beta$ controls brightness. SIFT is partially invariant to these changes due to gradient-based computations.
+
+    \begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/brightness_matches.png}
+    \caption{Feature Matching with different contrast}
+    \label{fig:fig9}
+    \end{figure}
+    
+\end{itemize}
+
+\subsection{Experimental Setup}
+
+The following transformations were applied to test SIFT robustness:
+
+\begin{itemize}
+    \item \textbf{Rotation}: 30° clockwise rotation
+    \item \textbf{Scale}: 0.7x scaling factor
+    \item \textbf{Illumination}: Brightness = 0.6, Contrast = 1.2
+    \item \textbf{Combined}: Rotation = 45°, Scale = 0.8, Brightness = 0.7
+\end{itemize}
+
+\begin{figure}[!ht]
+    \centering
+    \includegraphics[width=1\linewidth]{Output/simple_sift_outputs_4/combined_matches.png}
+    \caption{Feature Matching with combination of different transformations}
+    \label{fig:fig10}
+\end{figure}
+
+\subsection{Results and Analysis}
+
+The performance metrics for each transformation are shown in Table \ref{tab:transformation_results}.
+
+\begin{table}[H]
+\centering
+\caption{Transformation Analysis Results}
+\label{tab:transformation_results}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Transformation & Keypoints & Matches & Match Rate (\%) & Performance (\%) \\
+\midrule
+Rotation (30°) & 1009 & 700 & 69.4 & 69.4 \\
+Scale (0.7x) & 526 & 403 & 76.6 & 76.6 \\
+Illumination & 797 & 752 & 94.4 & 94.4 \\
+Combined & 664 & 427 & 64.3 & 64.3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+The combined transformation shows the most significant performance drop, indicating that multiple simultaneous transformations can affect matching accuracy.
+
+\section{Task 2 (Dataset Matching):}
+
+\subsection{Objective}
+
+This task demonstrates SIFT feature matching across a dataset of multiple images, analyzing pairwise matching patterns and identifying the most similar image pairs.
+
+\subsection{Mathematical Framework}
+
+For a dataset of $n$ images $\{I_1, I_2, \ldots, I_n\}$, we compute pairwise matching scores:
+
+\begin{equation}
+M_{ij} = \frac{|S_{ij}|}{\min(|K_i|, |K_j|)}
+\end{equation}
+
+where:
+\begin{itemize}
+    \item $S_{ij}$ is the set of matches between images $i$ and $j$
+    \item $K_i$ is the set of keypoints in image $i$
+    \item $M_{ij}$ is the normalized matching score
+\end{itemize}
+
+\subsection{Experimental Setup}
+
+The dataset consisted of 4 images such as two Lenna, one Eiffel Tower and one Taj Mahal.
+
+\subsection{Results and Analysis}
+
+The pairwise matching matrix is shown in Table \ref{tab:matching_matrix}.
+
+\begin{table}[H]
+\centering
+\caption{Pairwise Matching Matrix}
+\label{tab:matching_matrix}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+ & lenna1 & lenna2 & taj & eiffel \\
+\midrule
+lenna1 & 0 & 1100 & 7 & 8 \\
+lenna2 & 1100 & 0 & 4 & 6 \\
+taj & 7 & 4 & 0 & 209 \\
+eiffel & 8 & 6 & 209 & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=1\textwidth]{Output/simple_sift_outputs_4/task2_dataset_matching_2.png}
+\caption{Dataset matching analysis showing pairwise relationships}
+\label{fig:dataset_matching}
+\end{figure}
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=0.8\textwidth]{Output/simple_sift_outputs_4/task2_top_matches.png}
+\caption{Top Matched Image Pairs from Dataset}
+\label{fig:dataset_matching}
+\end{figure}
+
+\subsection{Discussion}
+
+The results reveal clear clustering patterns:
+\begin{itemize}
+    \item \textbf{High similarity}: Lenna images
+    \item \textbf{Medium similarity}: Different architectural images
+    \item \textbf{Low similarity}: Completely different image types
+\end{itemize}
+
+This demonstrates SIFT's ability to identify semantically similar content while distinguishing between different image categories.
+
+\section{Task 3 (Image Stitching):}
+
+\subsection{Objective}
+
+This task demonstrates panoramic image stitching using SIFT features to create a seamless panorama from sequential images.
+
+\subsection{Mathematical Framework for Stitching}
+
+\subsubsection{Homography Estimation}
+
+The relationship between corresponding points in two images is described by a homography matrix $H$:
+
+\begin{equation}
+\begin{bmatrix}
+x' \\
+y' \\
+1
+\end{bmatrix} = H \begin{bmatrix}
+x \\
+y \\
+1
+\end{bmatrix} = \begin{bmatrix}
+h_{11} & h_{12} & h_{13} \\
+h_{21} & h_{22} & h_{23} \\
+h_{31} & h_{32} & h_{33}
+\end{bmatrix} \begin{bmatrix}
+x \\
+y \\
+1
+\end{bmatrix}
+\end{equation}
+
+\subsubsection{RANSAC Algorithm}
+
+The RANSAC algorithm is used to robustly estimate the homography:
+
+\begin{algorithm}
+\caption{RANSAC Homography Estimation}
+\begin{algorithmic}[1]
+\STATE \textbf{Input:} Corresponding points $\{(x_i, y_i), (x'_i, y'_i)\}$
+\STATE \textbf{Output:} Homography matrix $H$
+\STATE \textbf{Repeat:}
+\STATE \quad Randomly select 4 point pairs
+\STATE \quad Compute homography $H_{temp}$ from selected points
+\STATE \quad Count inliers using reprojection error
+\STATE \textbf{Until:} Maximum iterations or sufficient inliers
+\STATE \textbf{Return:} Best homography $H$
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{Reprojection Error}
+
+The reprojection error for a point correspondence is:
+
+\begin{equation}
+e_i = \left|\left| \begin{bmatrix}
+x'_i \\
+y'_i
+\end{bmatrix} - \frac{1}{h_{31}x_i + h_{32}y_i + h_{33}} \begin{bmatrix}
+h_{11}x_i + h_{12}y_i + h_{13} \\
+h_{21}x_i + h_{22}y_i + h_{23}
+\end{bmatrix} \right|\right|_2
+\end{equation}
+
+\subsection{Sequential Stitching Algorithm}
+
+The three-image stitching process follows these steps:
+
+\begin{enumerate}
+    \item Extract SIFT features from all three images
+    \item Match features between adjacent image pairs
+    \item Estimate homography for each pair
+    \item Stitch left and center images
+    \item Extract features from the partial panorama
+    \item Stitch the panorama with the right image
+\end{enumerate}
+
+\subsection{Results and Analysis}
+
+The stitching process results are summarized in Fig.~\ref{fig:fig14}.
+
+% \begin{table}[H]
+% \centering
+% \caption{Image Stitching Results}
+% \label{tab:stitching_results}
+% \begin{tabular}{@{}lccc@{}}
+% \toprule
+% Step & Image Pair & Matches & Inliers \\
+% \midrule
+% 1 & Left ↔ Center & 2,456 & 1,892 \\
+% 2 & Panorama ↔ Right & 1,789 & 1,234 \\
+% \bottomrule
+% \end{tabular}
+% \end{table}
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=1\textwidth]{Output/simple_sift_outputs_4/task3_image_reconstruction_2.png}
+\caption{Different pieces of Lenna image}
+\label{fig:fig12}
+\end{figure}
+
+\begin{figure}[!ht]
+\centering
+\includegraphics[width=1\textwidth]{Output/simple_sift_outputs_4/task3_image_reconstruction_3.png}
+\caption{Different pieces of Taj Mahal image}
+\label{fig:fig13}
+\end{figure}
+
+% \begin{figure}[!ht]
+% \centering
+% \includegraphics[width=1\textwidth]{Output/simple_sift_outputs_4/task3_reconstructed_image.jpg}
+% \caption{Stiched Image}
+% \label{fig:fig14}
+% \end{figure}
+
+
+\begin{figure}[!ht]
+    \centering
+    % First image
+    \caption{Stiched Images}
+    \begin{minipage}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{Output/simple_sift_outputs_4/task3_reconstructed_image.jpg}
+        % \caption{Input image frame}
+        % \label{fig:image1}
+    \end{minipage}
+    \hfill
+    % Second image
+    \begin{minipage}{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{Output/simple_sift_outputs_4/task3_reconstructed_image_2.jpg}
+        % \caption{Gray scale conversion of input image}
+        % \label{fig:image2}
+    \end{minipage}
+    \label{fig:fig14}
+\end{figure}
+
+
+\subsection{Discussion}
+
+The stitching process successfully created a seamless panorama with:
+\begin{itemize}
+    \item High-quality feature matches
+    \item Robust homography estimation
+    \item Seamless blending between image regions
+\end{itemize}
+
+
+\section{Performance Analysis}
+
+\subsection{Computational Complexity}
+
+The computational complexity of SIFT is:
+\begin{itemize}
+    \item \textbf{Gaussian Pyramid}: $O(N \log N)$ where $N$ is the number of pixels
+    \item \textbf{Keypoint Detection}: $O(N)$ for local extrema detection
+    \item \textbf{Descriptor Computation}: $O(K \cdot W^2)$ where $K$ is the number of keypoints and $W$ is the descriptor window size
+    \item \textbf{Overall Complexity}: $O(N \log N + K \cdot W^2)$
+\end{itemize}
+
+\subsection{Memory Requirements}
+
+The memory requirements for SIFT are:
+\begin{itemize}
+    \item \textbf{Gaussian Pyramid}: $O(N \cdot O \cdot S)$ where $O$ is the number of octaves and $S$ is the number of scales
+    \item \textbf{DoG Pyramid}: $O(N \cdot O \cdot (S-1))$
+    \item \textbf{Descriptors}: $O(K \cdot 128)$ for 128-dimensional descriptors
+\end{itemize}
+
+\section{Conclusion}
+
+This implementation of the SIFT algorithm effectively demonstrates its robustness and versatility in computer vision tasks. The complete SIFT pipeline was implemented from scratch, showcasing strong invariance to rotation, scale, and illumination changes. It successfully achieved accurate multi-image feature matching and seamless panoramic image stitching, highlighting SIFT’s reliability for diverse real-world applications.
+
+\subsection{Future Work}
+
+Potential areas for future research include:
+\begin{itemize}
+    \item Optimization for real-time applications
+    \item Integration with deep learning approaches
+    \item Extension to video sequences
+\end{itemize}
+
+\section{References}
+
+\begin{enumerate}
+    \item Lowe, D. G. (2004). Distinctive image features from scale-invariant keypoints. \textit{International journal of computer vision}, 60(2), 91-110.
+    \item Mikolajczyk, K., \& Schmid, C. (2005). A performance evaluation of local descriptors. \textit{IEEE transactions on pattern analysis and machine intelligence}, 27(10), 1615-1630.
+    \item Bay, H., Tuytelaars, T., \& Van Gool, L. (2006). Surf: Speeded up robust features. \textit{European conference on computer vision}, 404-417.
+    \item Fischler, M. A., \& Bolles, R. C. (1981). Random sample consensus: a paradigm for model fitting with applications to image analysis and automated cartography. \textit{Communications of the ACM}, 24(6), 381-395.
+\end{enumerate}
+
+\end{document}
